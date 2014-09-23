@@ -306,6 +306,36 @@ static NSSet* org_apache_cordova_validArrowDirections;
             NSData* data = nil;
             // returnedImage is the image that is returned to caller and (optionally) saved to photo album
             UIImage* returnedImage = (scaledImage == nil ? image : scaledImage);
+            
+            //NSLog(@"the picker type is %ld", cameraPicker.sourceType);
+            
+            /*
+             BCHYRDO:GIS:GPS - start of our change. 
+                Note that it only works for JPEG 
+                and if there is no resizing or any other changes needed to the image. 
+                Because we handle all 'SourceTypePhotoLibrary', it will break any 
+                SourceTypePhotoLibrary scenario that does not have the exact needs of our app.
+                I injected our change here since we don't need the 
+                data = UIImageJPEGRepresentation(returnedImage, 1.0), so avoid doing it.
+             */
+            if (cameraPicker.sourceType == UIImagePickerControllerSourceTypePhotoLibrary) {
+                
+                NSString* docsPath = [NSTemporaryDirectory()stringByStandardizingPath];
+                NSFileManager* fileMgr = [[NSFileManager alloc] init]; // recommended by apple (vs [NSFileManager defaultManager]) to be threadsafe
+                // generate unique file name. uses the same logic as the un-modified CDVCamera.m down below
+                NSString* filePath;
+                int i = 1;
+                do {
+                    filePath = [NSString stringWithFormat:@"%@/%@%03d.%@", docsPath, CDV_PHOTO_PREFIX, i++, cameraPicker.encodingType == EncodingTypePNG ? @"png":@"jpg"];
+                } while ([fileMgr fileExistsAtPath:filePath]);
+                
+                //call our new function saveFileWithMetadata
+                [self saveFileWithMetadata:info toPath:filePath andCallback:cameraPicker.callbackId];
+                
+                return; //the method we use to get the image metadata is asynchronous, so just return
+            }
+            //BCHYRDO:GIS:GPS - end of our change
+
 
             if (cameraPicker.encodingType == EncodingTypePNG) {
                 data = UIImagePNGRepresentation(returnedImage);
@@ -686,6 +716,62 @@ static NSSet* org_apache_cordova_validArrowDirections;
     self.data = nil;
     self.metadata = nil;
 }
+
+#pragma mark - BCHYDRO:GIS:GPS
+
+/*
+ BCHYDRO:GIS:GPS saveFileWithMetadata()
+ 
+ new function to save the image with metadata, such as GPS location
+ 
+ */
+ (void) saveFileWithMetadata:(NSDictionary*)info toPath:(NSString*)filePath andCallback:(NSString*)callbackId
+{
+    
+    NSURL *assetURL = [info objectForKey:UIImagePickerControllerReferenceURL];
+    
+    //copied from https://github.com/foundry/UIImageMetadata to get asset from assetUrl. it uses an async callback block, so we make the CDVPluginResult callback directly form the block
+    //we need the ALAsset in order to get the full metadata, including GPS
+    
+    ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
+    [library assetForURL:assetURL
+             resultBlock:^(ALAsset *asset)  {
+                 
+                 //NSDictionary *imageMetaData = asset.defaultRepresentation.metadata;
+                 //NSLog (@"imageMetaData %@",imageMetaData);
+                 
+                 NSURL *urlToSaveTo = [[NSURL alloc] initFileURLWithPath:filePath];
+                 
+                 //code to save asseet to another location, with the embedded metadata curtesy of http://stackoverflow.com/a/15398387/618412
+                 
+                 CGImageDestinationRef imageDestinationRef   = CGImageDestinationCreateWithURL((__bridge CFURLRef)urlToSaveTo, kUTTypeJPEG, 1, NULL);
+                 CFDictionaryRef imagePropertiesRef          = (__bridge CFDictionaryRef)asset.defaultRepresentation.metadata;
+                 CGImageDestinationAddImage(imageDestinationRef, asset.defaultRepresentation.fullResolutionImage, imagePropertiesRef);
+                 
+                 CDVPluginResult* result = nil;
+                 BOOL success = CGImageDestinationFinalize(imageDestinationRef);
+                 CFRelease(imageDestinationRef);
+                 //done the code to save the image with metadata.
+                 
+                 //now the cordova plugin callback stuff
+                 if (!success) {
+                     NSString* message = [[NSString alloc] initWithFormat:@"Failed to copy photo on save to %@", filePath];
+                     NSLog(@"Failed to copy photo on save to %@", urlToSaveTo);
+                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:message];
+                 }
+                 else {
+                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:[[NSURL fileURLWithPath:filePath] absoluteString]];
+                 }
+                 
+                 [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+             }
+            failureBlock:^(NSError *error) {
+                //shouldn't hit here. usually ALAssetsLibraryAccessFailureBlock is hit if the app tried to get a photo but the user didn't allow it. But in our case, we'd never get the callback from the gallery picker
+                CDVPluginResult* result = result = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:[error localizedDescription]];
+                [self.commandDelegate sendPluginResult:result callbackId:callbackId];
+            }];
+}
+
 
 @end
 
