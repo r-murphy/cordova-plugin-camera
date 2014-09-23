@@ -721,11 +721,9 @@ static NSSet* org_apache_cordova_validArrowDirections;
 
 /*
  BCHYDRO:GIS:GPS saveFileWithMetadata()
- 
  new function to save the image with metadata, such as GPS location
- 
  */
- (void) saveFileWithMetadata:(NSDictionary*)info toPath:(NSString*)filePath andCallback:(NSString*)callbackId
+- (void) saveFileWithMetadata:(NSDictionary*)info toPath:(NSString*)filePath andCallback:(NSString*)callbackId
 {
     
     NSURL *assetURL = [info objectForKey:UIImagePickerControllerReferenceURL];
