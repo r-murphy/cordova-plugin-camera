@@ -138,6 +138,17 @@ interface CameraPopoverOptions {
     arrowDir : number;
 }
 
+declare class CameraPopoverOptions implements CameraPopoverOptions {
+    /**
+     * @param {Number} [x=0] - x pixel coordinate of screen element onto which to anchor the popover.
+     * @param {Number} [y=32] - y pixel coordinate of screen element onto which to anchor the popover.
+     * @param {Number} [width=320] - width, in pixels, of the screen element onto which to anchor the popover.
+     * @param {Number} [height=480] - height, in pixels, of the screen element onto which to anchor the popover.
+     * @param {module:Camera.PopoverArrowDirection} [arrowDir=ARROW_ANY] - Direction the arrow on the popover should point.
+     */
+    constructor(x?: number, y?: number, width?: number, height?: number, arrowDir?: number);
+}
+
 declare var Camera: {
     // Camera constants, defined in Camera plugin
     DestinationType: {
